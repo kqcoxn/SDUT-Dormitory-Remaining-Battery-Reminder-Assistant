@@ -1,8 +1,22 @@
+from nonebot import get_driver, on_command, require, get_bots
+from nonebot.rule import to_me
+from nonebot.rule import Rule
+from nonebot.adapters.onebot.v11 import GroupMessageEvent
+from .config import Config
 from enum import Enum
 import urllib3
 import requests
 from bs4 import BeautifulSoup
 import re
+import datetime
+
+# 加载配置
+global_config = get_driver().config
+config = Config.parse_obj(global_config)
+
+# 引入依赖
+require("nonebot_plugin_apscheduler")
+from nonebot_plugin_apscheduler import scheduler
 
 # 禁用警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -21,7 +35,7 @@ class Error_Type(Enum):
     OTHER_ERROR = -999
 
 
-# json读取
+# 读取参数
 def get_webforms_data(power_type: Power_Type) -> dict:
     obj = {}
 
@@ -104,7 +118,124 @@ def obtain_power(power_type: Power_Type) -> float:
         return -2
 
 
-socket_power = obtain_power(Power_Type.SOCKET)
-ac_power = obtain_power(Power_Type.AC)
+# 获取请求时间
+def get_request_time() -> str:
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-print(socket_power, ac_power)
+
+# 规则
+async def group_checker(event: GroupMessageEvent) -> bool:
+    return event.group_id == 982215318 or event.group_id == 442115556
+
+
+async def tome_checker() -> bool:
+    return to_me()
+
+
+rules = Rule(group_checker, tome_checker)
+
+
+# 响应器
+get_all_power = on_command("宿舍电量", rule=rules, aliases={
+    '电量', '电费', "宿舍电费"}, priority=98, block=True)
+
+get_socket_power = on_command("照明电量", rule=rules, aliases={
+    '照明', '插座', "照明电费", "插座电费"}, priority=99, block=True)
+
+get_ac_power = on_command("空调电量", rule=rules, aliases={
+    '空调', "空调电费"}, priority=99, block=True)
+
+
+@get_all_power.handle()
+async def all_power_check():
+    socket_power = obtain_power(Power_Type.SOCKET)
+    check_time = get_request_time()
+    ac_power = obtain_power(Power_Type.AC)
+
+    str = f"#{check_time}\n剩余照明电量: {socket_power} kW·h ({round(socket_power*0.55, 2)}￥)\n剩余空调电量: {ac_power} kW·h ({round(ac_power*0.55, 2)}￥)\n"
+    if (socket_power < 10) and (ac_power < 10):
+        str = str + "照明和空调都要没电了喵，赶紧交电费喵"
+    elif (socket_power < 10):
+        str = str + "照明要没电了喵，赶紧交电费喵"
+    elif (ac_power < 10):
+        str = str + "空调要没电了喵，赶紧交电费喵"
+    else:
+        str = str + "电量还很充足喵"
+
+    await get_all_power.finish(str)
+
+
+@get_socket_power.handle()
+async def socket_power_check():
+    check_time = get_request_time()
+    socket_power = obtain_power(Power_Type.SOCKET)
+
+    str = f"#{check_time}\n剩余照明电量: {socket_power} kW·h ({round(socket_power*0.55, 2)}￥)\n"
+    if (socket_power < 10):
+        str = str + "照明要没电了喵，赶紧交电费喵"
+    else:
+        str = str + "电量还很充足喵"
+
+    await get_socket_power.finish(str)
+
+
+@get_ac_power.handle()
+async def kt_battery_check():
+    check_time = get_request_time()
+    ac_power = obtain_power(Power_Type.AC)
+
+    str = f"#{check_time}\n剩余空调电量: {ac_power} kW·h ({round(ac_power*0.55, 2)}￥)\n"
+    if (ac_power < 10):
+        str = str + "空调要没电了喵，赶紧交电费喵"
+    else:
+        str = str + "电量还很充足喵"
+
+    await get_ac_power.finish(str)
+
+
+# 定时器
+is_noticed: bool = False
+
+
+async def auto_check_power():
+    # 睡眠规避
+    current_hour = datetime.datetime.now().hour
+    if current_hour < 10 or current_hour >= 24:
+        return
+
+    # 获取当前电量
+    socket_power = obtain_power(Power_Type.SOCKET)
+    check_time = get_request_time()
+    ac_power = obtain_power(Power_Type.AC)
+
+    # 低电量提醒
+    global is_noticed
+    if socket_power < 10 or ac_power < 10:
+        # 重复规避
+        if is_noticed:
+            return
+
+        # 文本处理
+        str = f"#{check_time}\n剩余照明电量: {socket_power} kW·h ({round(socket_power*0.55, 2)}￥)\n剩余空调电量: {ac_power} kW·h ({round(ac_power*0.55, 2)}￥)\n"
+        if (socket_power < 10) and (ac_power < 10):
+            str = str + "照明和空调都要没电了喵，赶紧交电费喵"
+        elif (socket_power < 10):
+            str = str + "照明要没电了喵，赶紧交电费喵"
+        elif (ac_power < 10):
+            str = str + "空调要没电了喵，赶紧交电费喵"
+        else:
+            str = str + "电量还很充足喵"
+
+        # 发送提醒
+        bot, = get_bots().values()
+        await bot.send_group_msg(
+            group_id=982215318,
+            message=str
+        )
+        is_noticed = True
+
+    elif is_noticed:
+        is_noticed = False
+
+scheduler.add_job(auto_check_power, "interval",
+                  hours=2, id="auto_check_power")
