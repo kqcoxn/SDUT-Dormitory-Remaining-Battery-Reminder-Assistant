@@ -6,5 +6,8 @@
     "users": [
         670526605
     ],
-    "target_group": 982215318
+    "target_group": 982215318,
+    "is_open_AC": false,
+    "is_daily_report": true,
+    "warning_value": 6
 }
