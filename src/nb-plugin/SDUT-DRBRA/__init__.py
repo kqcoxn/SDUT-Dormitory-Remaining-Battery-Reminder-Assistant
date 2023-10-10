@@ -93,6 +93,15 @@ def record_history(socket_power: float, ac_power: float):
         json.dump(history_data, json_file)
 
 
+# 保存配置
+def record_settings():
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+    json_file_path = os.path.join(
+        current_directory, 'data', 'Config.json')
+    with open(json_file_path, 'w') as json_file:
+        json.dump(settings, json_file)
+
+
 # 获取电量
 def obtain_power(power_type: Power_Type) -> float:
     # 构造请求
@@ -134,18 +143,9 @@ async def tome_checker() -> bool:
 rules = Rule(group_checker, tome_checker)
 
 
-# 响应器
+# 宿舍电量响应
 get_all_power = on_command("宿舍电量", rule=rules, aliases={
     '电量', '电费', "宿舍电费"}, priority=99, block=True)
-
-get_today_delta = on_command("今日耗电", rule=rules, aliases={
-    '今日用电', "今日电量"}, priority=100, block=True)
-
-get_yesterday_delta = on_command("昨日耗电", rule=rules, aliases={
-    '昨日用电', "昨日电量"}, priority=100, block=True)
-
-report_charging = on_command("充电记录", rule=rules, aliases={
-    '上报充电', "充电"}, priority=101, block=True)
 
 
 @get_all_power.handle()
@@ -174,6 +174,11 @@ async def all_power_check():
     await get_all_power.finish(str)
 
 
+# 今日用电响应
+get_today_delta = on_command("今日耗电", rule=rules, aliases={
+    '今日用电', "今日电量"}, priority=100, block=True)
+
+
 @get_today_delta.handle()
 async def today_delta_check():
     # 保存当前电量
@@ -197,6 +202,11 @@ async def today_delta_check():
         pass
 
 
+# 昨日用电响应
+get_yesterday_delta = on_command("昨日耗电", rule=rules, aliases={
+    '昨日用电', "昨日电量"}, priority=100, block=True)
+
+
 @get_yesterday_delta.handle()
 async def yesterday_delta_check():
     # 计算耗电量
@@ -216,6 +226,11 @@ async def yesterday_delta_check():
         await get_today_delta.finish(str)
     except Exception:
         pass
+
+
+# 上报充电响应
+report_charging = on_command("充电记录", rule=rules, aliases={
+    '上报充电', "充电"}, priority=101, block=True)
 
 
 @report_charging.handle()
@@ -239,6 +254,37 @@ async def handle_function(args: Message = CommandArg()):
         await report_charging.finish(f"已记录{type}充电 {amount} ￥({round(amount/0.55,2)} kW·h)")
     else:
         await report_charging.finish("请输入充电种类与充电金额喵")
+
+
+# 热重载响应
+overload_settings = on_command("热重载电量配置", aliases={
+    '热重载电量设置'}, rule=rules, priority=101, block=True)
+
+
+@overload_settings.handle()
+async def overload_setting():
+    global settings
+    settings = get_data("Config")
+    await overload_settings.finish("配置热重载成功！")
+
+
+# 开关空调用电
+set_AC = on_command("空调检测", rule=rules, priority=101, block=True)
+
+
+@set_AC.handle()
+async def set_ac(args: Message = CommandArg()):
+    if message := args.extract_plain_text():
+        # 更改配置
+        settings["is_open_AC"] = True if (
+            message == "开" or message == "打开") else False
+
+        # 保存配置
+        record_settings()
+
+        await set_AC.finish(f"已{'打开' if settings['is_open_AC'] else '关闭'}空调检测")
+    else:
+        await set_AC.finish("请输入开/关指令")
 
 
 # 定时查询
@@ -294,7 +340,7 @@ async def auto_check_power():
         is_noticed = False
 
 scheduler.add_job(auto_check_power, "interval",
-                  hours=2, id="auto_check_power")
+                  hours=settings["auto_interval"], id="auto_check_power")
 
 
 # 记录当日电量
@@ -325,11 +371,11 @@ async def daily_check_power():
             if settings["is_open_AC"]:
                 str = str + \
                     f"剩余空调电量: {ac_power} kW·h ({round(ac_power*0.55, 2)}￥)\n"
-            str = str + "\n晚安喵~"
+            str = str + "\n晚安喵，记得关灯~"
             await bot.send_group_msg(
                 group_id=target_group,
                 message=str
             )
 
-scheduler.add_job(auto_check_power, "cron", hour='23',
-                  minute='58', id="daily_check_power")
+scheduler.add_job(daily_check_power, "cron", hour=settings["record_time"][0],
+                  minute=settings["record_time"][1], id="daily_check_power")

@@ -9,5 +9,10 @@
     "target_group": 982215318,
     "is_open_AC": false,
     "is_daily_report": true,
-    "warning_value": 6
+    "warning_value": 6,
+    "record_time": [
+        10,
+        58
+    ],
+    "auto_interval": 2
 }
