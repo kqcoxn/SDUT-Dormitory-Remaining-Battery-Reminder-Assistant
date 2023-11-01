@@ -1,0 +1,11 @@
+{
+  "name": "SDUT-DRBRA-SERVER",
+  "version": "1.0.0",
+  "description": "just for fun",
+  "main": "index.js",
+  "author": "codax",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12"
+  }
+}

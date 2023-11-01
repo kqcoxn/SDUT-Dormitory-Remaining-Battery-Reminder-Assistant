@@ -1,0 +1,7 @@
+{
+    "port":9872,
+    "queryIntervalHour":1.9,
+    "startTime":8,
+    "endTime":24,
+    "isLogError":true
+}

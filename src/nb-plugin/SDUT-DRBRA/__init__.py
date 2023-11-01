@@ -42,18 +42,12 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 require("nonebot_plugin_apscheduler")
 from nonebot_plugin_apscheduler import scheduler
 
-
 # 查询类型枚举
+
+
 class Power_Type(Enum):
     SOCKET = 1
     AC = 2
-
-
-# 错误值枚举
-class Error_Type(Enum):
-    NETWORK_ERROR = -1
-    PARAM_ERROR = -2
-    OTHER_ERROR = -999
 
 
 # 获取请求模板
@@ -219,10 +213,10 @@ async def yesterday_delta_check():
             last_1days_power[1] + last_1days_power[3]
 
         # 合成文本
-        str = f"今日照明耗电: {round(socket_delta, 2)} kW·h ({round(socket_delta*0.55, 2)}￥)"
+        str = f"昨日照明耗电: {round(socket_delta, 2)} kW·h ({round(socket_delta*0.55, 2)}￥)"
         if settings["is_open_AC"]:
             str = str + \
-                f"\n今日空调耗电: {round(ac_delta, 2)} kW·h ({round(ac_delta*0.55, 2)}￥)"
+                f"\n昨日空调耗电: {round(ac_delta, 2)} kW·h ({round(ac_delta*0.55, 2)}￥)"
         await get_today_delta.finish(str)
     except Exception:
         pass
@@ -245,13 +239,13 @@ async def handle_function(args: Message = CommandArg()):
 
         # 设置充电量
         history_data[get_now_date()][3 if (
-            type == "空调") else 2] = amount
+            type == "空调") else 2] = round(amount / 0.55, 2)
 
         # 保存数据
         record_history(obtain_power(Power_Type.SOCKET),
                        obtain_power(Power_Type.AC))
 
-        await report_charging.finish(f"已记录{type}充电 {amount} ￥({round(amount/0.55,2)} kW·h)")
+        await report_charging.finish(f"已记录{type}充电 {amount}￥({round(amount/0.55,2)} kW·h)")
     else:
         await report_charging.finish("请输入充电种类与充电金额喵")
 
@@ -268,7 +262,7 @@ async def overload_setting():
     await overload_settings.finish("配置热重载成功！")
 
 
-# 开关空调用电
+# 开关空调用电响应
 set_AC = on_command("空调检测", rule=rules, priority=101, block=True)
 
 
@@ -362,16 +356,16 @@ async def daily_check_power():
             ac_delta = yesterday_power[1] - today_power[1] + today_power[3]
 
             # 发送消息
-            str = f"#{get_now_date()}\n今日照明耗电: {round(socket_delta, 2)} kW·h ({round(socket_delta*0.55, 2)}￥)"
+            str = f"#{get_now_date()}#\n剩余照明电量: {socket_power} kW·h ({round(socket_power*0.55, 2)}￥)"
+            if settings["is_open_AC"]:
+                str = str + \
+                    f"\n剩余空调电量: {ac_power} kW·h ({round(ac_power*0.55, 2)}￥)"
+            str = str + \
+                f"\n—————\n今日照明耗电: {round(socket_delta, 2)} kW·h ({round(socket_delta*0.55, 2)}￥)"
             if settings["is_open_AC"]:
                 str = str + \
                     f"\n今日空调耗电: {round(ac_delta, 2)} kW·h ({round(ac_delta*0.55, 2)}￥)"
-            str = str + \
-                f"\n剩余照明电量: {socket_power} kW·h ({round(socket_power*0.55, 2)}￥)"
-            if settings["is_open_AC"]:
-                str = str + \
-                    f"剩余空调电量: {ac_power} kW·h ({round(ac_power*0.55, 2)}￥)\n"
-            str = str + "\n晚安喵，记得关灯~"
+            str = str + "\n\n晚安喵，记得关灯~"
             await bot.send_group_msg(
                 group_id=target_group,
                 message=str
