@@ -255,7 +255,7 @@ is_noticed: bool = False
 async def auto_check_power():
     # 睡眠规避
     current_hour = datetime.now().hour
-    if current_hour < 10 or current_hour >= 24:
+    if current_hour < 8 or current_hour >= 24:
         return
 
     # 获取当前电量

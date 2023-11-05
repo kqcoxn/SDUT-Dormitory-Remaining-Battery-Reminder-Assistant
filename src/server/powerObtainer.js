@@ -68,15 +68,14 @@ var nowPowerData = {
   },
 };
 
+history[tools.getNowtime("stdDate")] = [-1, -1, 0, 0];
 function recordHistory(addedSocketCost = 0, addedACCost = 0) {
   nowTime = tools.getNowtime("stdDate");
   history[nowTime] = [
     nowPowerData.socket,
     nowPowerData.ac,
-    history[nowTime][2]
-      ? history[nowTime][2] + addedSocketCost
-      : addedSocketCost,
-    history[nowTime][3] ? history[nowTime][3] + addedACCost : addedACCost,
+    history[nowTime][2] + addedSocketCost,
+    history[nowTime][3] + addedACCost,
   ];
   fs.writeFile("./data/History.json", JSON.stringify(history), (err) => {
     if (err) {
@@ -153,7 +152,7 @@ const startTime = settings.startTime;
 const endTime = settings.endTime;
 setInterval(() => {
   let nowHour = new Date().getHours();
-  if (nowHour < startTime || nowHour >= endTime) {
+  if (nowHour >= startTime && nowHour < endTime) {
     updatePowerData();
   }
 }, Math.round(queryIntervalHour * 60 * 60 * 1000));

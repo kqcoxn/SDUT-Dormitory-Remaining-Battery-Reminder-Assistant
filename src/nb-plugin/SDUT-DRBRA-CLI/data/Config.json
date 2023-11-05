@@ -27,8 +27,8 @@
     "is_daily_report": true,
     "warning_value": 7,
     "record_time": [
-        10,
-        58
+        22,
+        49
     ],
     "auto_interval": 2
 }
